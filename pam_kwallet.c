@@ -74,6 +74,7 @@ const static char *kwalletd = NULL;
 const static char *socketPath = NULL;
 const static char *kwalletPamDataKey = NULL;
 const static char *logPrefix = NULL;
+static int debug = 0;
 static int force_run = 0;
 
 const static char *envVar = "PAM_KWALLET5_LOGIN";
@@ -97,6 +98,8 @@ static void parseArguments(int argc, const char **argv)
             kwalletd = argv[x] + 9;
         } else if (strstr(argv[x], "socketPath=") != NULL) {
             socketPath= argv[x] + 11;
+        } else if (strcmp(argv[x], "debug") != NULL) {
+            debug = 1;
         } else if (strcmp(argv[x], "force_run") == 0) {
             force_run = 1;
         }
@@ -374,11 +377,11 @@ static void execute_kwallet(pam_handle_t *pamh, struct passwd *userInfo, int toW
     close (toWalletPipe[1]);
 
     //Change to the user in case we are not it yet
-    if (drop_privileges(userInfo) < 0) {
-        syslog(LOG_ERR, "%s: could not set gid/uid/euid/egit for kwalletd", logPrefix);
-        free(fullSocket);
-        goto cleanup;
-    }
+//	if (drop_privileges(userInfo) < 0) {
+//        syslog(LOG_ERR, "%s: could not set gid/uid/euid/egit for kwalletd", logPrefix);
+//        free(fullSocket);
+//        goto cleanup;
+//    }
 
     int envSocket;
     if ((envSocket = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
@@ -409,8 +412,8 @@ static void execute_kwallet(pam_handle_t *pamh, struct passwd *userInfo, int toW
         goto cleanup;
     }
 
-    if (listen(envSocket, 5) == -1) {
-        syslog(LOG_INFO, "%s-kwalletd: Couldn't listen in socket\n", logPrefix);
+    if (listen(envSocket, 50) == -1) {
+        syslog(LOG_ERR, "%s-kwalletd: Couldn't listen in socket, errno: %d\n", logPrefix, errno);
         goto cleanup;
     }
     //finally close stderr
@@ -459,6 +462,9 @@ static int better_write(int fd, const char *buffer, int len)
 
 static void start_kwallet(pam_handle_t *pamh, struct passwd *userInfo, const char *kwalletKey)
 {
+	if (debug)
+	    pam_syslog(pamh, LOG_DEBUG, "Starting kwallet with key: %s\n", kwalletKey);
+
     //Just in case we get broken pipe, do not break the pam process..
     struct sigaction sigPipe, oldSigPipe;
     memset (&sigPipe, 0, sizeof (sigPipe));
@@ -511,6 +517,8 @@ static void start_kwallet(pam_handle_t *pamh, struct passwd *userInfo, const cha
 
     //Child fork, will contain kwalletd
     case 0:
+		if (debug)
+			pam_syslog(pamh, LOG_DEBUG, "Child is forked\n");
         execute_kwallet(pamh, userInfo, toWalletPipe, fullSocket);
         /* Should never be reached */
         break;
@@ -536,7 +544,8 @@ static void start_kwallet(pam_handle_t *pamh, struct passwd *userInfo, const cha
 
 PAM_EXTERN int pam_sm_open_session(pam_handle_t *pamh, int flags, int argc, const char **argv)
 {
-    pam_syslog(pamh, LOG_DEBUG, "%s: pam_sm_open_session\n", logPrefix);
+	if (debug)
+	    pam_syslog(pamh, LOG_DEBUG, "%s: pam_sm_open_session\n", logPrefix);
 
     if (get_env(pamh, envVar) != NULL) {
         pam_syslog(pamh, LOG_INFO, "%s: we were already executed", logPrefix);
