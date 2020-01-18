@@ -413,7 +413,7 @@ static void execute_kwallet(pam_handle_t *pamh, struct passwd *userInfo, int toW
 
     if (listen(envSocket, 50) == -1) {
         syslog(LOG_ERR, "%s-kwalletd: Couldn't listen in socket, errno: %d\n", logPrefix, errno);
-        goto cleanup;
+//        goto cleanup;
     }
     //finally close stderr
     close(2);
