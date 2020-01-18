@@ -98,7 +98,7 @@ static void parseArguments(int argc, const char **argv)
             kwalletd = argv[x] + 9;
         } else if (strstr(argv[x], "socketPath=") != NULL) {
             socketPath= argv[x] + 11;
-        } else if (strcmp(argv[x], "debug") != NULL) {
+        } else if (strcmp(argv[x], "debug") == 0) {
             debug = 1;
         } else if (strcmp(argv[x], "force_run") == 0) {
             force_run = 1;
