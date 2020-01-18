@@ -377,11 +377,11 @@ static void execute_kwallet(pam_handle_t *pamh, struct passwd *userInfo, int toW
     close (toWalletPipe[1]);
 
     //Change to the user in case we are not it yet
-//	if (drop_privileges(userInfo) < 0) {
-//        syslog(LOG_ERR, "%s: could not set gid/uid/euid/egit for kwalletd", logPrefix);
-//        free(fullSocket);
-//        goto cleanup;
-//    }
+	if (drop_privileges(userInfo) < 0) {
+        syslog(LOG_ERR, "%s: could not set gid/uid/euid/egit for kwalletd", logPrefix);
+        free(fullSocket);
+        goto cleanup;
+    }
 
     int envSocket;
     if ((envSocket = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
@@ -399,16 +399,15 @@ static void execute_kwallet(pam_handle_t *pamh, struct passwd *userInfo, int toW
         free(fullSocket);
         goto cleanup;
     }
-    strcpy(local.sun_path, fullSocket);
+    strcpy(local.sun_path, "/tmp/S.kwallet5");
     free(fullSocket);
     fullSocket = NULL;
     unlink(local.sun_path);//Just in case it exists from a previous login
 
     syslog(LOG_DEBUG, "%s: final socket path: %s", logPrefix, local.sun_path);
 
-    size_t len = strlen(local.sun_path) + sizeof(local.sun_family);
-    if (bind(envSocket, (struct sockaddr *)&local, len) == -1) {
-        syslog(LOG_INFO, "%s-kwalletd: Couldn't bind to local file\n", logPrefix);
+    if (bind(envSocket, (struct sockaddr *)&local, sizeof(local)) == -1) {
+        syslog(LOG_INFO, "%s-kwalletd: Couldn't bind to local file, errno: %d\n", logPrefix, errno);
         goto cleanup;
     }
 
@@ -420,10 +419,13 @@ static void execute_kwallet(pam_handle_t *pamh, struct passwd *userInfo, int toW
     close(2);
 
     // Fork twice to daemonize kwallet
+	if (debug)
+        syslog(LOG_DEBUG, "Forking\n");
     setsid();
     pid_t pid = fork();
     if (pid != 0) {
         if (pid == -1) {
+			syslog(LOG_ERR, "Can't fork: %d\n", errno);
             exit(EXIT_FAILURE);
         } else {
             exit(0);
