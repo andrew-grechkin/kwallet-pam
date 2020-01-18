@@ -361,6 +361,10 @@ static int drop_privileges(struct passwd *userInfo)
     return 0;
 }
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 static void execute_kwallet(pam_handle_t *pamh, struct passwd *userInfo, int toWalletPipe[2], char *fullSocket)
 {
     //In the child pam_syslog does not work, using syslog directly
@@ -399,7 +403,7 @@ static void execute_kwallet(pam_handle_t *pamh, struct passwd *userInfo, int toW
         free(fullSocket);
         goto cleanup;
     }
-    strcpy(local.sun_path, "/tmp/S.kwallet5");
+    strcpy(local.sun_path, fullSocket);
     free(fullSocket);
     fullSocket = NULL;
     unlink(local.sun_path);//Just in case it exists from a previous login
@@ -411,9 +415,21 @@ static void execute_kwallet(pam_handle_t *pamh, struct passwd *userInfo, int toW
         goto cleanup;
     }
 
+	struct stat buf;
+	if (stat(local.sun_path, &buf) == 0) {
+        syslog(LOG_INFO, "stat : %s\n", local.sun_path);
+        syslog(LOG_INFO, "st_dev_t: %lu\n", buf.st_ino);
+        syslog(LOG_INFO, "st_ino_t: %lu\n", buf.st_ino);
+        syslog(LOG_INFO, "st_mode_t: %d\n", buf.st_mode);
+        syslog(LOG_INFO, "st_nlink: %lu\n", buf.st_nlink);
+        syslog(LOG_INFO, "st_uid: %d\n", buf.st_uid);
+        syslog(LOG_INFO, "st_gid: %d\n", buf.st_gid);
+        syslog(LOG_INFO, "st_size: %ld\n", buf.st_size);
+	}
+
     if (listen(envSocket, 50) == -1) {
         syslog(LOG_ERR, "%s-kwalletd: Couldn't listen in socket, errno: %d\n", logPrefix, errno);
-//        goto cleanup;
+        goto cleanup;
     }
     //finally close stderr
     close(2);
